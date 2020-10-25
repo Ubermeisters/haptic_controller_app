@@ -4,12 +4,6 @@
 
 #include "Tickable.h"
 
-class ButtonContext {
-public:
-  ButtonContext() : rising_callback([=](){}) {}
-  std::map<unsigned long, std::function<void()>> falling_callbacks;
-  std::function<void()> rising_callback;
-};
 
 DebouncedButton::DebouncedButton(int _button_pin, bool _is_active_high) :
     DebouncedButton(_button_pin, _is_active_high, DEFAULT_MIN_PRESS_DURATION)
@@ -50,23 +44,15 @@ void DebouncedButton::tick() {
       last_state_transition_time = current_time;
       if((input == false)) {
         //Serial.println("falling edge!");
-        execute_next_falling_callback(state_duration);
+        ctx->release(state_duration);
       }
       if((input == true)) {
         //Serial.println("rising edge!");
-        (ctx->rising_callback)();
+        ctx->press();
       }
     }
   }
   last_input = input;
-}
-
-void DebouncedButton::on_release(unsigned long max_duration, std::function<void()> fn) {
-  
-  ctx->falling_callbacks[max_duration] = fn;
-}
-void DebouncedButton::on_press(std::function<void()> fn) {
-  ctx->rising_callback = fn;
 }
 
 ButtonContext* DebouncedButton::release_context() {
@@ -81,17 +67,4 @@ void DebouncedButton::refresh_context() {
 void DebouncedButton::set_context(ButtonContext *_ctx) {
   delete ctx;
   ctx = _ctx;
-}
-
-void DebouncedButton::execute_next_falling_callback(unsigned long press_duration) {
-  Serial.print("searching for next falling callback with duration no less than ");
-  Serial.print(press_duration);
-  Serial.println("ms...");
-  auto it = ctx->falling_callbacks.lower_bound(press_duration);
-  if(it == ctx->falling_callbacks.end()) {
-    Serial.println("no callback found!");
-    return;
-  }
-  Serial.println("executing callback");
-  (it->second)();
 }

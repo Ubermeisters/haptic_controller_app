@@ -6,7 +6,22 @@
 
 #include "Tickable.h"
 
-class ButtonContext;
+class ButtonContext {
+public:
+  ButtonContext() {}
+  
+  // Registers a callback to execute on button release
+  // On button release, callback with the lowest max_duration higher than the press duration
+  void on_release(std::function<void(unsigned long)> fn) { falling_callback = fn; }
+  void on_press(std::function<void()> fn) { rising_callback = fn; }
+  void release(unsigned long duration) { falling_callback(duration); }
+  void press() { rising_callback(); }
+
+private:
+  std::function<void(unsigned long)> falling_callback;
+  std::function<void()> rising_callback;
+};
+
 class DebouncedButton : public Tickable {
 public:
   // any press less than DEFAULT_MIN_PRESS_DURATION will be considered a bounce, and ignored, unless alternative specified
@@ -14,11 +29,6 @@ public:
   DebouncedButton(int _button_pin, bool _is_active_high, unsigned long _min_press_duration);
   virtual ~DebouncedButton();
   void tick() override;
-
-  // Registers a callback to execute on button release
-  // On button release, callback with the lowest max_duration higher than the press duration
-  void on_release(unsigned long max_duration, std::function<void()> fn);
-  void on_press(std::function<void()> fn);
 
   // A context represents callbacks registered with the button
   ButtonContext *release_context();

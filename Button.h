@@ -7,7 +7,10 @@
 
 class ButtonContext {
 public:
-  ButtonContext() {}
+  ButtonContext() : 
+      _falling_callback([](unsigned long){})
+    , _rising_callback([](){})
+  {}
   
   // Registers a callback to execute on button release
   // On button release, callback with the lowest max_duration higher than the press duration

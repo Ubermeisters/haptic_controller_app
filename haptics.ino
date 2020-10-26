@@ -3,11 +3,16 @@
 #include <Adafruit_DRV2605.h>
 
 #include "Button.h"
-//#include "Timer.h"
+#include "Timer.h"
 #include "Tickable.h"
+
+// NOTE!!!!!! button presses that are released after a state transition may act unexpectedly
+// This should be fixed in the future
 
 constexpr unsigned long SHORT_PRESS_MS = 500;
 constexpr unsigned long LONG_PRESS_MS = 3000;
+
+constexpr unsigned long RECORDING_DURATION_MS = 10000;
 
 constexpr int BAUD_RATE = 115200;
 
@@ -17,6 +22,7 @@ constexpr int PIN_BUTTON_0 = 0;
 
 std::vector<Tickable*> components;
 
+Timer* timer;
 Button *button;
 ButtonContext* haptic_ctx;
 ButtonContext* record_ctx;
@@ -49,12 +55,15 @@ void setup() {
   drv.setMode(DRV2605_MODE_INTTRIG);
 
   // Allocate button and push into list of components
+  timer = new Timer();
+  components.push_back(timer);
   button = new Button(PIN_BUTTON_0, false); // Again, active low
   components.push_back(button);
 
   // Helper function to initialize button behavior
   init_haptic_ctx();
   init_record_ctx();
+  init_playback_ctx();
 
   // Button starts in "haptic" mode
   button->set_context(haptic_ctx);
@@ -96,17 +105,33 @@ void init_haptic_ctx() {
       drv.setWaveform(1, 0);
       drv.go();
     } else {
-      // On long button press, start recording for 5 seconds, then switch to playback
+      // On long button press, start recording, then switch to playback
       haptic_ctx = button->release_context();
       button->set_context(record_ctx);
       pulses.clear();
       recording_start_time = millis();
-      //timer->in(
-      //  RECORDING_DURATION_MS,
-      //  [&](){
-      //    record_ctx = button->release_context();
-      //    button->set_context(playback_ctx);
-      //});
+      timer->in(
+        RECORDING_DURATION_MS,
+        [&](){
+          record_ctx = button->release_context();
+          button->set_context(playback_ctx);
+          for(auto& pulse : pulses) {
+            // schedule on
+            timer->in(
+              pulse.first,
+              [&]() {
+                digitalWrite(PIN_LED_0, HIGH);
+                Serial.println("led on");
+            });
+            // schedule off
+            timer->in(
+              pulse.first + pulse.second,
+              [&]() {
+                digitalWrite(PIN_LED_0, LOW);
+                Serial.println("led off");
+            });
+          }
+      });
     }
   });
 }
@@ -117,7 +142,7 @@ void init_record_ctx() {
   record_ctx->on_press([&]() {
     // Create pulse entry with 0 duration
     unsigned long time_from_start = millis() - recording_start_time;
-    Serial.print("created entry at ");
+    Serial.print("created pulse at ");
     Serial.print(time_from_start);
     Serial.println("ms");
     pulses.push_back(std::make_pair(time_from_start, 0));
@@ -126,10 +151,15 @@ void init_record_ctx() {
     // Update duration of most recent pulse
     auto& last_entry = pulses.back();
     last_entry.second = duration;
-    Serial.print("duration of entry at ");
+    Serial.print("duration of pulse at ");
     Serial.print(last_entry.first);
     Serial.print("ms set to ");
     Serial.print(duration);
     Serial.println("ms");
   });
+}
+
+void init_playback_ctx() {
+  Serial.println("initializing playback_ctx");
+  playback_ctx = new ButtonContext();
 }

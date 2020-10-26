@@ -19,7 +19,8 @@ public:
   Timer();
   void tick() override;
 
-  void in(unsigned long countdown, std::function<void()> fn);
+  void after(unsigned long countdown, std::function<void()> fn);
+  void clear();
 private:
   std::priority_queue<std::pair<unsigned long, std::function<void()>>,
                       std::vector<std::pair<unsigned long, std::function<void()>>>,

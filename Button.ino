@@ -12,17 +12,17 @@ Button::Button(int button_pin, bool is_active_high) :
 
 // any press less than _min_press_duration will be considered a bounce, and ignored
 Button::Button(int button_pin, bool is_active_high, unsigned long min_press_duration) :
-    _min_press_duration(min_press_duration)
+    _falling_callback([](unsigned long){})
+  , _rising_callback([](unsigned long){})
+  , _min_press_duration(min_press_duration)
   , _button_pin(button_pin)
   , _is_active_high(is_active_high)
   , _state(false)
   , _last_input(false)
-  , _ctx(new ButtonContext())
 {
 }
 
 Button::~Button() {
-  delete _ctx;
 }
 
 void Button::tick() {
@@ -45,31 +45,27 @@ void Button::tick() {
       _last_state_transition_time = current_time;
       if((input == false)) {
         //Serial.println("falling edge!");
-        _ctx->release(state_duration);
+        _falling_callback(state_duration);
       }
       if((input == true)) {
         //Serial.println("rising edge!");
-        _ctx->press();
+        _rising_callback(current_time);
       }
     }
   }
   _last_input = input;
 }
 
-bool Button::get_state() {
-  return _state;
-}
+void Button::on_press(std::function<void(unsigned long)> fn) { _rising_callback = fn; }
+void Button::on_release(std::function<void(unsigned long)> fn) { _falling_callback = fn; }
 
-ButtonContext* Button::release_context() {
-  ButtonContext* tmp = _ctx;
-  _ctx = new ButtonContext();
-  return tmp;
-}
-void Button::refresh_context() {
-  delete _ctx;
-  _ctx = new ButtonContext();
-}
-void Button::set_context(ButtonContext *ctx) {
-  delete _ctx;
-  _ctx = ctx;
+void Button::reset() {
+  // TODO review this, doubt it is solid
+  if(_state) {
+    _state = false;
+    _falling_callback(millis() - _last_state_transition_time);
+    Serial.println("force_down released the button");
+  }
+  _falling_callback = [](unsigned long) {};
+  _rising_callback = [](unsigned long) {};
 }

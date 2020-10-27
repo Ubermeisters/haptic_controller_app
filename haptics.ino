@@ -75,16 +75,6 @@ void setup() {
   // Turn off LED_0
   digitalWrite(PIN_LED_0, !LED_0_ACTIVE_HIGH);
 
-  // Initialize DRV
-  Adafruit_DRV2605 drv;
-  drv.begin();
-  drv.selectLibrary(DRV_EFFECT_LIB);
-  drv.setMode(DRV2605_MODE_INTTRIG);
-  std::vector<int> effects = {1, 10, 100};
-  std::size_t effect_idx = 0;
-  int active = effects[effect_idx];
-  std::vector<std::pair<point_t, interval_t>> pulses;
-
   // Allocate event driven components
   std::vector<Tickable*> components;
 
@@ -93,6 +83,22 @@ void setup() {
 
   Button button{PIN_BUTTON_0, BUTTON_0_ACTIVE_HIGH};
   components.push_back(&button);
+
+  // Initialize DRV
+  Adafruit_DRV2605 drv;
+  drv.begin();
+  drv.selectLibrary(DRV_EFFECT_LIB);
+  drv.setMode(DRV2605_MODE_INTTRIG);
+  std::vector<int> effects = {1, 10, 100}; // !!! add/remove/modify effects here
+  std::size_t effect_idx = effects.size() - 1;
+  std::vector<std::pair<point_t, interval_t>> pulses;
+  std::function<void()> repeat_preset = [&]() {
+    timer.after(1000, repeat_preset);
+    drv.setWaveform(0, effects[effect_idx]);
+    drv.setWaveform(1, 0);
+    drv.go();
+
+  };
 
   // Define our states
   StateMachine machine;
@@ -111,15 +117,13 @@ void setup() {
       if(duration < SHORT_PRESS_MS) {
         ++effect_idx;
         effect_idx %= effects.size();
-        active = effects[effect_idx];
       } else {
         machine.transition(&record_state);
       }
     });
-    //std::function<void()> repeat_preset = [&]() {
-    //  timer.after(1000, repeat_preset);
-    //};
-    //timer.after(0, repeat_preset);
+    if(!effects.empty()) {
+      timer.after(0, repeat_preset);
+    }
   });
 
   presets_state.on_exit([&]() {

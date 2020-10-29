@@ -88,7 +88,6 @@ void setup() {
   Adafruit_DRV2605 drv;
   drv.begin();
   drv.selectLibrary(DRV_EFFECT_LIB);
-  drv.setMode(DRV2605_MODE_INTTRIG);
   std::vector<int> effects = {1, 10, 100}; // !!! add/remove/modify effects here
   std::size_t effect_idx = effects.size() - 1;
   std::vector<std::pair<point_t, interval_t>> pulses;
@@ -109,6 +108,7 @@ void setup() {
   presets_state.on_entry([&]() {
     Serial.println("entering presets state");
     //Serial.println("1");
+    drv.setMode(DRV2605_MODE_INTTRIG);
     button.on_press([&](point_t start_time) {
       print_start_time(start_time);
     });
@@ -138,6 +138,7 @@ void setup() {
   point_t recording_start_time;
   record_state.on_entry([&]() {
     Serial.println("entering record state");
+    pulses.clear();
     recording_start_time = millis();
     button.on_press([&](point_t event_time) {
       print_start_time(event_time);
@@ -161,6 +162,7 @@ void setup() {
 
   playback_state.on_entry([&]() {
     Serial.println("entering playback state");
+    drv.setMode(DRV2605_MODE_REALTIME);
     for(const auto& pulse : pulses) {
       point_t t = pulse.first;
       interval_t dur = pulse.second;
@@ -168,11 +170,13 @@ void setup() {
         t,
         [&]() {
           digitalWrite(PIN_LED_0, LED_0_ACTIVE_HIGH);
+          drv.setRealtimeValue(100);
       });
       timer.after(
         t + dur,
         [&]() {
           digitalWrite(PIN_LED_0, !LED_0_ACTIVE_HIGH);
+          drv.setRealtimeValue(0);
       });
     }
     timer.after(
@@ -186,6 +190,7 @@ void setup() {
     Serial.println("exiting playback state");
     // Force down the button to prevent getting unexpected releases
     // Stop the driver and clear the timer to end playback
+    drv.setRealtimeValue(0);
     button.reset();
   });
 
